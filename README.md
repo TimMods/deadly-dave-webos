@@ -1,6 +1,7 @@
 # Deadly Dave
 
 [![GitHub Sponsors](https://img.shields.io/badge/Sponsor-GitHub-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/vittau)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy_Me_a_Coffee-vittau-ffdd00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/vittau)
 
 ![Level 2, whole, on a wide viewport](res/screenshots/screen4.png)
 
