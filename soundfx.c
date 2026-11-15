@@ -575,7 +575,7 @@ static void soundfx_free_tunes(soundfx_t *sfx) {
 
 soundfx_t* soundfx_create(void) {
     soundfx_t *sfx = calloc(1, sizeof(soundfx_t));
-    SDL_AudioSpec audio_spec;
+    SDL_AudioSpec audio_spec = {0};
 
     if (sfx == NULL) {
         printf("Failed to allocate the sound effects. \n");

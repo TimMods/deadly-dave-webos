@@ -2,14 +2,15 @@
 #include <stdlib.h>
 #include <signal.h>
 
-#if defined LINUX || __linux__ || _LINUX
+#if !defined(DEADLY_DAVE_WEBOS) && (defined(LINUX) || defined(__linux__) || defined(_LINUX))
+#define DD_BACKTRACE
 #include <execinfo.h>
 #include <unistd.h>
 #endif
 
 #include "game.h"
 
-#if defined LINUX || __linux__ || _LINUX
+#ifdef DD_BACKTRACE
 static void sigseg_handler(int sig) {
     void *array[10];
     size_t size;
@@ -30,7 +31,7 @@ static void usage(void) {
     printf("\n");
     printf("Move with WASD (W jumps, S climbs down), the arrow keys work too. \n");
     printf("Space shoots, J is the jetpack. \n");
-    printf("On a controller: stick or D-pad moves, A jumps, B is the jetpack, X shoots, Start is Escape. \n");
+    printf("On a controller: stick or D-pad moves, A jumps, B is the jetpack, X/R1/R2 shoot, Start is Escape. \n");
     printf("In game, F5 (or the pause menu's SCALING row) cycles pixel perfect scaling, filling the screen and 1x, 2x or 3x pixels. \n");
 #if defined(__APPLE__)
     printf("Cmd+Enter switches between full screen and windowed. The game opens the way you left it. \n");
@@ -43,12 +44,19 @@ int main(int argc, char **argv) {
     int is_windowed = 0;
     int level = 1;
 
-#if defined LINUX || __linux__ || _LINUX
+#ifdef DD_BACKTRACE
     signal(SIGSEGV, sigseg_handler);
 #endif
 
     argc--;
     argv++;
+#ifdef DEADLY_DAVE_WEBOS
+    /* SAM passes the launch parameters as a JSON object. */
+    if (argc > 0 && argv[0][0] == '{') {
+        argc--;
+        argv++;
+    }
+#endif
     while (argc > 0) {
         if (strcmp(argv[0], "-w") == 0) {
             argc--;

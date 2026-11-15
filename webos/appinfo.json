@@ -1,0 +1,11 @@
+{
+  "id": "com.timmods.deadlydave",
+  "type": "native",
+  "main": "deadly-dave",
+  "title": "Deadly Dave",
+  "version": "0.1.16",
+  "vendor": "Vitor Taufer",
+  "icon": "icon.png",
+  "iconColor": "#603108",
+  "splashBackground": "splash.png"
+}

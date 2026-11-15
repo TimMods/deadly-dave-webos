@@ -1,6 +1,13 @@
 ﻿cmake_minimum_required(VERSION 3.20)
 project ("deadly-dave")
 
+set(DEADLY_DAVE_WEBOS_SDL "" CACHE PATH "Path to an extracted SDL-webOS ARM runtime")
+if (DEADLY_DAVE_WEBOS_SDL)
+  add_library(webos-sdl SHARED IMPORTED)
+  set_target_properties(webos-sdl PROPERTIES
+    IMPORTED_LOCATION "${DEADLY_DAVE_WEBOS_SDL}/lib/libSDL2-2.0.so.0"
+    INTERFACE_INCLUDE_DIRECTORIES "${DEADLY_DAVE_WEBOS_SDL}/include/SDL2")
+else()
 include(FetchContent)
 set(FETCHCONTENT_QUIET FALSE)
 find_package(OpenGL REQUIRED)
@@ -29,6 +36,7 @@ message(STATUS "SDL3 Binary Dir: ${SDL3_BINARY_DIR}")
 
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${deadly-dave_SOURCE_DIR}/")
+endif()
 set(CMAKE_DISABLE_PRECOMPILE_HEADERS ON)
 
 include_directories(include)
@@ -56,10 +64,21 @@ endif()
 
 add_executable (deadly-dave ${DEADLY_DAVE_SOURCES})
 
-target_link_libraries(deadly-dave PUBLIC SDL3::SDL3-static)
+if (DEADLY_DAVE_WEBOS_SDL)
+  set_target_properties(deadly-dave PROPERTIES C_STANDARD 99 C_STANDARD_REQUIRED ON
+    BUILD_WITH_INSTALL_RPATH ON INSTALL_RPATH "$ORIGIN/lib")
+  target_compile_definitions(deadly-dave PRIVATE DEADLY_DAVE_WEBOS)
+  target_compile_options(deadly-dave PRIVATE -Wall)
+  target_include_directories(deadly-dave PRIVATE webos/compat)
+  target_sources(deadly-dave PRIVATE webos/compat/audio.c webos/compat/platform.c)
+  target_link_options(deadly-dave PRIVATE -Wl,--disable-new-dtags)
+  target_link_libraries(deadly-dave PRIVATE webos-sdl)
+else()
+  target_link_libraries(deadly-dave PRIVATE SDL3::SDL3-static)
+endif()
 # The Blargg NTSC filter uses sin/cos/pow/exp; MSVC has them in its CRT without
 # an extra library.
 if (NOT WIN32)
-  target_link_libraries(deadly-dave PUBLIC m)
+  target_link_libraries(deadly-dave PRIVATE m)
 endif()
 #set_property(TARGET deadly-dave)

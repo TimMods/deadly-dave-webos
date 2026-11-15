@@ -896,7 +896,11 @@ static int load_asset_set(assets_t *assets, const char *dir) {
              * opaque on top of the level. Only those are keyed out, the
              * level tiles and the HUD bars are meant to be opaque.
              */
+#ifdef DEADLY_DAVE_WEBOS
+            if (!SDL_ISPIXELFORMAT_ALPHA(surface->format->format) &&
+#else
             if (!SDL_ISPIXELFORMAT_ALPHA(surface->format) &&
+#endif
                     i >= SPRITE_IDX_MONSTER_SPIDER1 && i <= SPRITE_IDX_BULLET_LEFT) {
                 key_out_black_background(assets->imgdata[i]);
             }
@@ -1014,8 +1018,8 @@ static void toggle_scale_mode(void) {
  * a DualSense on Linux or a Switch Pro controller all report the same buttons:
  * A is SOUTH, B is EAST, X is WEST and Start is START.
  *
- * The left stick and the D-pad move Dave, A jumps, B toggles the jetpack, X
- * shoots and Start is the Escape key. The stick axes rest at zero and the
+ * The left stick and the D-pad move Dave, A jumps, B toggles the jetpack,
+ * X, R1 and R2 shoot and Start is the Escape key. The stick axes rest at zero and the
  * D-pad reports one button at a time, so a dead zone is only needed for the
  * stick.
  *
@@ -1025,6 +1029,7 @@ static void toggle_scale_mode(void) {
  * only jump. A, like the keyboard jump key, also climbs up a vine.
  */
 #define GAMEPAD_DEAD_ZONE 8000
+#define GAMEPAD_FIRE_TRIGGER_THRESHOLD 8000
 
 static void gamepad_open(void) {
     SDL_JoystickID *ids;
@@ -1062,12 +1067,17 @@ static void gamepad_update(keys_state_t *state) {
     state->climb_up |= (y < -GAMEPAD_DEAD_ZONE) || SDL_GetGamepadButton(g_gamepad, SDL_GAMEPAD_BUTTON_DPAD_UP);
     state->jump     |= SDL_GetGamepadButton(g_gamepad, SDL_GAMEPAD_BUTTON_SOUTH);
     state->fire     |= SDL_GetGamepadButton(g_gamepad, SDL_GAMEPAD_BUTTON_WEST) ||
-                       SDL_GetGamepadButton(g_gamepad, SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER);
+                       SDL_GetGamepadButton(g_gamepad, SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER) ||
+                       SDL_GetGamepadAxis(g_gamepad, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) > GAMEPAD_FIRE_TRIGGER_THRESHOLD;
 }
 
 /* Handles the events that are a one shot in the game: the jetpack toggles, so
  * holding the button must not flip it every frame, and Escape opens a popup. */
 static void gamepad_event(SDL_Event *event, keys_state_t *state) {
+#ifdef DEADLY_DAVE_WEBOS
+#define gdevice cdevice
+#define gbutton cbutton
+#endif
     if (event->type == SDL_EVENT_GAMEPAD_ADDED) {
         gamepad_open();
 
@@ -1113,6 +1123,10 @@ static void gamepad_event(SDL_Event *event, keys_state_t *state) {
         }
     }
 }
+#ifdef DEADLY_DAVE_WEBOS
+#undef gdevice
+#undef gbutton
+#endif
 
 static void get_keys(keys_state_t* state) {
     SDL_Event event;
@@ -1121,13 +1135,20 @@ static void get_keys(keys_state_t* state) {
      * WASD, with the arrow keys kept as an alternative. W is jump, S climbs
      * down and the space bar shoots, Ctrl still does too.
      */
+#ifdef DEADLY_DAVE_WEBOS
+    const Uint8 *keystate = SDL_GetKeyboardState(NULL);
+#else
     const bool *keystate = SDL_GetKeyboardState(NULL);
+#endif
     state->right      = (keystate[SDL_SCANCODE_RIGHT] != 0 || keystate[SDL_SCANCODE_D] != 0) ? 1 : 0;
     state->left       = (keystate[SDL_SCANCODE_LEFT]  != 0 || keystate[SDL_SCANCODE_A] != 0) ? 1 : 0;
     state->jump       = (keystate[SDL_SCANCODE_UP]    != 0 || keystate[SDL_SCANCODE_W] != 0) ? 1 : 0;
     state->down       = (keystate[SDL_SCANCODE_DOWN]  != 0 || keystate[SDL_SCANCODE_S] != 0) ? 1 : 0;
     state->escape     = (keystate[SDL_SCANCODE_ESCAPE] != 0) ? 1 : 0;
     state->fire       = (keystate[SDL_SCANCODE_SPACE] != 0 || keystate[SDL_SCANCODE_LCTRL] != 0) ? 1 : 0;
+#ifdef DEADLY_DAVE_WEBOS
+    state->fire      |= keystate[SDL_SCANCODE_RETURN] != 0;
+#endif
     state->space      = (keystate[SDL_SCANCODE_SPACE] != 0) ? 1 : 0;
     state->key_y      = (keystate[SDL_SCANCODE_Y] != 0) ? 1 : 0;
     state->key_n      = (keystate[SDL_SCANCODE_N] != 0) ? 1 : 0;
@@ -1152,7 +1173,22 @@ static void get_keys(keys_state_t* state) {
     while (SDL_PollEvent(&event)) {
         if (event.type == SDL_EVENT_KEY_DOWN) {
             int is_repeat = event.key.repeat;
+#ifdef DEADLY_DAVE_WEBOS
+            SDL_Keysym keysym = event.key.keysym;
+            SDL_Keycode key = keysym.sym;
+            SDL_Scancode scancode = keysym.scancode;
+            Uint16 mod = keysym.mod;
+            if (scancode == SDL_WEBOS_SCANCODE_BACK) {
+                if (!is_repeat) {
+                    state->escape = 1;
+                }
+                continue;
+            }
+#else
             SDL_Keycode key = event.key.key;
+            SDL_Scancode scancode = event.key.scancode;
+            SDL_Keymod mod = event.key.mod;
+#endif
 
             /*
              * A name is typed by what the key says, not where it sits, so
@@ -1173,28 +1209,36 @@ static void get_keys(keys_state_t* state) {
             } else if (key == SDLK_RIGHT) {
                 state->pick_accept = 1;
             }
-            if (is_repeat == 0 && event.key.scancode != SDL_SCANCODE_F5 &&
-                    event.key.scancode != SDL_SCANCODE_F10 &&
-                    !(event.key.scancode == SDL_SCANCODE_RETURN &&
-                      (event.key.mod & TOGGLE_FULLSCREEN_MOD) != 0)) {
+            if (is_repeat == 0 && scancode != SDL_SCANCODE_F5 &&
+                    scancode != SDL_SCANCODE_F10 &&
+                    !(scancode == SDL_SCANCODE_RETURN &&
+                      (mod & TOGGLE_FULLSCREEN_MOD) != 0)) {
                 state->pressed = 1;
             }
             /* Edge triggered: the jetpack is a toggle, holding the key is not meant to flip it. */
-            if (event.key.scancode == SDL_SCANCODE_J && is_repeat == 0) {
+            if (scancode == SDL_SCANCODE_J && is_repeat == 0) {
                 state->jetpack = 1;
             }
-            if (event.key.scancode == SDL_SCANCODE_RETURN && is_repeat == 0) {
-                if ((event.key.mod & TOGGLE_FULLSCREEN_MOD) != 0) {
+#ifdef DEADLY_DAVE_WEBOS
+            if (key == SDLK_0 && is_repeat == 0) {
+                state->jetpack = 1;
+            }
+#endif
+            if (scancode == SDL_SCANCODE_RETURN && is_repeat == 0) {
+                if ((mod & TOGGLE_FULLSCREEN_MOD) != 0) {
                     toggle_fullscreen();
                 } else {
                     state->enter = 1;
+#ifdef DEADLY_DAVE_WEBOS
+                    state->fire = 1;
+#endif
                 }
             }
-            if (event.key.scancode == SDL_SCANCODE_F5 && is_repeat == 0) {
+            if (scancode == SDL_SCANCODE_F5 && is_repeat == 0) {
                 toggle_scale_mode();
             }
             /* Development shortcut: look at the ending without playing to it. */
-            if (event.key.scancode == SDL_SCANCODE_F10 && is_repeat == 0) {
+            if (scancode == SDL_SCANCODE_F10 && is_repeat == 0) {
                 state->congrats = 1;
             }
         } else if (event.type == SDL_EVENT_QUIT) {
@@ -2902,6 +2946,11 @@ int game_main(int is_windowed, int starting_level) {
 
     SDL_SetMainReady();
     /* SDL3 returns true on success, and dropped SDL_INIT_NOPARACHUTE. */
+#ifdef DEADLY_DAVE_WEBOS
+    SDL_SetHint("SDL_VIDEODRIVER", "wayland");
+    /* Have the compositor deliver Back to the game instead of handling it. */
+    SDL_SetHint(SDL_HINT_WEBOS_ACCESS_POLICY_KEYS_BACK, "true");
+#endif
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         printf("Failed to initialize SDL video. Error: (%s) \n", SDL_GetError());
         return -1;
