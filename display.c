@@ -339,16 +339,24 @@ uint64_t display_frame_period_ns(void) {
         return DISPLAY_FALLBACK_PERIOD_NS;
     }
 
+#ifdef DEADLY_DAVE_WEBOS
+    SDL_DisplayMode current_mode;
+    mode = SDL_GetCurrentDisplayMode(display - 1, &current_mode) == 0 ? &current_mode : NULL;
+#else
     mode = SDL_GetCurrentDisplayMode(display);
+#endif
     if (mode == NULL) {
         return DISPLAY_FALLBACK_PERIOD_NS;
     }
 
+#ifndef DEADLY_DAVE_WEBOS
     if (mode->refresh_rate_numerator > 0 && mode->refresh_rate_denominator > 0) {
         /* Exact: 60000/1001 stays 60000/1001 instead of going through a float. */
         period = (SDL_NS_PER_SECOND * (uint64_t)mode->refresh_rate_denominator) /
             (uint64_t)mode->refresh_rate_numerator;
-    } else if (mode->refresh_rate > 0.0f) {
+    } else
+#endif
+    if (mode->refresh_rate > 0.0f) {
         period = (uint64_t)((double)SDL_NS_PER_SECOND / (double)mode->refresh_rate);
     } else {
         /* 0 means "unknown", which some backends and virtual displays do report. */
